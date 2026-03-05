@@ -60,3 +60,9 @@ If your change is a product feature or major behavior change, publish it as your
 - [ ] No secrets added
 - [ ] Tests/checks passed
 - [ ] Documentation updated
+
+
+## See also
+
+- [README.md](./README.md)
+- [docs/SANDBOX.md](./docs/SANDBOX.md)

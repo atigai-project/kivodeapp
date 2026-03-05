@@ -624,6 +624,8 @@ def handle(root: Path, command: Dict[str, Any]) -> Dict[str, Any]:
         ensure_in_root(root, file_path)
         if not file_path.exists():
             return fail('Target file does not exist')
+        if not is_text_file(file_path):
+            return fail('Target file appears to be binary/non-text; open_file only supports text files')
         content = file_path.read_text(encoding='utf-8', errors='ignore')
         return ok({"path": rel, "content": content})
     if action == 'create_file':
