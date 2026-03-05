@@ -32,3 +32,9 @@
 ## Diagram placeholders
 - TODO: Sequence diagram for renderer-to-main IPC.
 - TODO: Component diagram for sandboxed Python runtime.
+
+
+## See also
+
+- [../README.md](../README.md)
+- [SANDBOX.md](./SANDBOX.md)

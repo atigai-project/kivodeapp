@@ -35,6 +35,15 @@ interface SandboxEnvironmentStatus {
   details: string;
 }
 
+interface SandboxAssetDiagnostics {
+  resourcesRoot: string;
+  runtimePython: string;
+  ensureScript: string;
+  requirements: string;
+  wheelsDir: string;
+  missing: string[];
+}
+
 const DEFAULT_TIMEOUT_MS = 5000;
 const MAX_TIMEOUT_MS = 15000;
 const DEFAULT_MEMORY_MB = 256;
@@ -111,12 +120,48 @@ export class SandboxService {
     task.logs = [...task.logs.slice(-199), `[${new Date().toISOString()}] ${message}`];
   }
 
-  private ensureBundledRuntimeExists() {
+
+  private collectAssetDiagnostics(): SandboxAssetDiagnostics {
+    const resourcesRoot = this.getResourcesPythonRoot();
     const runtimePython = this.getRuntimePythonPath();
-    if (!fs.existsSync(runtimePython)) {
-      throw new Error(`Bundled Python runtime missing at ${runtimePython}. System Python fallback is forbidden.`);
+    const ensureScript = this.getEnsureScriptPath();
+    const requirements = this.getRequirementsPath();
+    const wheelsDir = this.getWheelsDir();
+    const missing = [runtimePython, ensureScript, requirements, wheelsDir].filter((entry) => !fs.existsSync(entry));
+
+    return { resourcesRoot, runtimePython, ensureScript, requirements, wheelsDir, missing };
+  }
+
+  private buildMissingAssetError(details: SandboxAssetDiagnostics, reason: string) {
+    const lines = [
+      `${reason}.`,
+      `resources root: ${details.resourcesRoot}`,
+      `runtime path: ${details.runtimePython}`,
+      `ensure script: ${details.ensureScript}`,
+      `requirements: ${details.requirements}`,
+      `wheels dir: ${details.wheelsDir}`,
+      `missing paths: ${details.missing.length ? details.missing.join(', ') : 'none'}`,
+    ];
+    return lines.join(' | ');
+  }
+
+  private async resolveDevFallbackPython(diagnostics: SandboxAssetDiagnostics) {
+    if (app.isPackaged) {
+      throw new Error(this.buildMissingAssetError(diagnostics, 'Bundled sandbox assets are incomplete'));
     }
-    return runtimePython;
+
+    const candidates = process.platform === 'win32' ? ['python', 'py'] : ['python3', 'python'];
+    for (const candidate of candidates) {
+      try {
+        await this.execute(candidate, ['--version'], { timeout: 3000 });
+        console.warn(`[SandboxService] Development fallback engaged: using system python candidate '${candidate}' because bundled assets are incomplete.`);
+        return candidate;
+      } catch {
+        continue;
+      }
+    }
+
+    throw new Error(this.buildMissingAssetError(diagnostics, 'Sandbox assets are incomplete and no development python fallback is available'));
   }
 
   private execute(pythonPath: string, args: string[], options: { timeout?: number; maxBuffer?: number } = {}) {
@@ -144,8 +189,13 @@ export class SandboxService {
     if (!force && this.environmentPromise) return this.environmentPromise;
 
     this.environmentPromise = (async () => {
-      const runtimePython = this.ensureBundledRuntimeExists();
+      const diagnostics = this.collectAssetDiagnostics();
+      const runtimePython = fs.existsSync(diagnostics.runtimePython)
+        ? diagnostics.runtimePython
+        : await this.resolveDevFallbackPython(diagnostics);
       const venvPython = this.getVenvPythonPath();
+
+      console.log(`[SandboxService] ensureEnvironment start | platform=${this.getPlatformKey()} | resources=${diagnostics.resourcesRoot} | runtime=${runtimePython} | wheels=${diagnostics.wheelsDir}`);
 
       if (fs.existsSync(venvPython)) {
         return {
@@ -187,7 +237,12 @@ export class SandboxService {
         venvRoot: this.getVenvRoot(),
         details: 'Sandbox environment bootstrapped from bundled runtime and offline wheels',
       };
-    })();
+    })().catch((error) => {
+      this.environmentPromise = null;
+      const diagnostics = this.collectAssetDiagnostics();
+      console.error(`[SandboxService] environment initialization failed | ${error?.message || error} | missing=${diagnostics.missing.join(', ') || 'none'}`);
+      throw error;
+    });
 
     return this.environmentPromise;
   }

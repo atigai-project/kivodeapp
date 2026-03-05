@@ -1,92 +1,72 @@
-# Kivode+ Python Sandbox
+# Python Sandbox Guide
 
-## Embedded Runtime (No System Python Dependency)
-Kivode+ now uses a bundled Python runtime from app resources only.
+This document is the implementation-focused companion to `README.md` for sandbox runtime behavior.
 
-- Runtime source path (read-only): `resources/python/runtime/<platform>/...`
-- Offline wheels source path (read-only): `resources/python/wheels/<platform>/...`
+## Runtime model
+
+- Bundled runtime source: `resources/python/runtime/<platform-arch>/...`
+- Offline wheels source: `resources/python/wheels/<platform-arch>/...`
 - Bootstrap script: `resources/python/bootstrap/ensure_env.py`
+- Assistant helper: packaged from `src/main/python/assistant_env.py` (optional duplicate in `resources/python/assistant_env.py`)
 - Requirements: `resources/python/requirements.txt`
 
-Sandbox execution **does not fallback** to `python` from system PATH.
-If bundled runtime is missing, sandbox fails explicitly.
+`SandboxService` enforces bundled runtime in packaged mode.
+In development mode only, a minimal fallback to system `python3/python` is allowed when bundled runtime is missing.
 
-## User Writable Environment
-A platform-specific venv is created in app data on first run/update:
+## Fresh-clone bootstrap
 
-- Windows: `%APPDATA%/Kivode+/python-sandbox/<platform>/venv`
-- macOS: `~/Library/Application Support/Kivode+/python-sandbox/<platform>/venv`
-- Linux: `~/.local/share/Kivode+/python-sandbox/<platform>/venv`
+```bash
+npm install
+npm run init:sandbox-assets
+npm run verify:sandbox-assets
+```
 
-## Bootstrapping Flow (Offline)
-1. `SandboxService.ensureEnvironment()` checks if venv python exists.
-2. If missing, it runs `ensure_env.py` with bundled runtime.
-3. `ensure_env.py` creates venv and installs dependencies via:
-   - `pip install --no-index --find-links <wheels-dir> -r requirements.txt`
-4. Service logs the exact python path used for sandbox tasks.
+`npm run init:sandbox-assets` creates missing directories for the current platform key and places a placeholder README under `resources/python/`.
 
-## Installed Sandbox Packages
-- `PyYAML==6.0.3`
-- `beautifulsoup4==4.12.*`
-- `toml==0.10.*`
-- `jedi==0.19.*`
-- `radon==6.*`
-- `pygments==2.19.*`
+## Required paths by platform key
 
+- `win32-x64` / `win32-arm64`: `resources/python/runtime/<platform-arch>/python.exe`
+- `linux-x64` / `linux-arm64`: `resources/python/runtime/<platform-arch>/bin/python3`
+- `darwin-x64` / `darwin-arm64`: `resources/python/runtime/<platform-arch>/bin/python3`
 
-## Payload Transport to `sandbox_runner.py`
-The runner supports three input modes (backward compatible):
-- `--input "<json-string>"`
-- `--input-file <path-to-json>`
-- `--input-stdin` (reads full JSON from stdin)
+Wheels location for every target:
+- `resources/python/wheels/<platform-arch>/*.whl`
 
-Priority order:
-1. `--input-file`
-2. `--input-stdin`
-3. `--input`
+## Environment bootstrapping flow
 
-On Windows/PowerShell, passing large JSON via CLI quoting is unreliable, so Kivode+ main process now uses `--input-file` for task payload transport.
+1. `SandboxService.ensureEnvironment()` resolves required asset paths.
+2. If venv already exists in app data, it is reused.
+3. Otherwise `ensure_env.py` runs with:
+   - `--runtime-python`
+   - `--venv-root`
+   - `--requirements`
+   - `--wheels-dir`
+4. `ensure_env.py` creates venv then installs wheels offline (`--no-index --find-links`).
 
-## Limits
-- Default timeout: 5s per task (max 15s).
-- Default memory: 256MB per task (max 512MB).
-- stdout/stderr truncated to 200KB.
+## Diagnostics added
 
-## Security Policy (MVP)
-- Network blocked by policy (`socket`, `requests`, `httpx`, `aiohttp`, `urllib*`, `ssl`, `ftplib`).
-- Process spawn blocked (`subprocess`, `os.system`, `os.popen`, `ctypes`).
-- Filesystem restricted:
-  - Read inside workspace root only.
-  - Write only inside `<workspace>/.kivode/sandbox/`.
-- Import allowlist enforced in `sandbox_policy.py`.
+Main-process logs now include:
+- detected platform key,
+- resources root,
+- runtime path,
+- wheels path,
+- exact missing paths on failure.
 
-## Failure Behavior
-If runtime/wheels/bootstrap fail:
-- `sandbox:ensureEnvironment` returns failure.
-- UI shows failed environment state.
-- Task execution returns explicit error; no silent fallback to system python.
+When initialization fails, the cached init promise is cleared to allow retry after fixing files.
 
-## Update Behavior
-After app update, bootstrap re-validates the venv.
-If required packages are missing/mismatched, local offline reinstall is attempted from bundled wheels.
+## Verify command output
 
-## Hard Sandbox TODO
-OS-level isolation remains TODO:
-- Windows: Job Objects + process-scoped firewall rule.
-- macOS: sandbox-exec / App Sandbox entitlements.
-- Linux: bubblewrap or firejail.
+`npm run verify:sandbox-assets` now prints:
+- platform and arch,
+- expected runtime path,
+- expected wheels path,
+- python version expectation,
+- wheel ABI hints (for example `cp311`).
 
+If assets are missing, it prints exact missing paths and exits non-zero.
 
-## CI Asset Population
-The workflow `.github/workflows/python-sandbox-assets.yml` now performs:
-- Runtime staging into `resources/python/runtime/<platform>` (starting with real Windows x64 runtime assets, plus other matrix targets).
-- Offline wheel generation into `resources/python/wheels/<platform>`.
-- Verification gate (`node scripts/verify-sandbox-assets.mjs --platform=<platform>`) that fails if runtime executable or required wheels are missing.
-- Smoke execution of `HtmlSeoAuditTask` and printing `sys.executable` from the bundled venv python.
+## Related docs
 
-## Build Verification Gate
-Use this before release packaging:
-- `npm run verify:sandbox-assets`
-- `npm run build:release`
-
-These commands fail when runtime executable or required wheels are missing for the current platform.
+- [README.md](../README.md)
+- [ARCHITECTURE_OVERVIEW.md](../ARCHITECTURE_OVERVIEW.md)
+- [docs/SECURITY.md](./SECURITY.md)
