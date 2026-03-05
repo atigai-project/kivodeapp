@@ -7,7 +7,7 @@ This document is the implementation-focused companion to `README.md` for sandbox
 - Bundled runtime source: `resources/python/runtime/<platform-arch>/...`
 - Offline wheels source: `resources/python/wheels/<platform-arch>/...`
 - Bootstrap script: `resources/python/bootstrap/ensure_env.py`
-- Assistant helper: `resources/python/assistant_env.py`
+- Assistant helper: packaged from `src/main/python/assistant_env.py` (optional duplicate in `resources/python/assistant_env.py`)
 - Requirements: `resources/python/requirements.txt`
 
 `SandboxService` enforces bundled runtime in packaged mode.

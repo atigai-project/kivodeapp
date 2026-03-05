@@ -51,7 +51,7 @@ See full docs:
 Packaged builds use:
 - bundled runtime executable under `resources/python/runtime/<platform-arch>/...`
 - offline wheel files under `resources/python/wheels/<platform-arch>/...`
-- helper script `resources/python/assistant_env.py`
+- helper script is packaged from `src/main/python/assistant_env.py` (optional duplicate at `resources/python/assistant_env.py`)
 - bootstrap script `resources/python/bootstrap/ensure_env.py`
 
 In packaged mode there is no system-Python fallback.
@@ -182,7 +182,7 @@ npm run build:all
 Common causes:
 1. runtime path missing for current platform/arch.
 2. wheel directory exists but required wheels are missing.
-3. `resources/python/assistant_env.py` is missing.
+3. `assistant_env.py` missing from both `src/main/python/` and `resources/python/` (rare).
 4. platform/arch mismatch (for example `win32-x64` assets while building arm64).
 5. stale app-data venv from previous failed bootstrap.
 

@@ -29,7 +29,8 @@ const plat = explicitPlatform || platformKey();
 
 const pythonRoot = path.join(root, 'resources', 'python');
 const reqPath = path.join(pythonRoot, 'requirements.txt');
-const assistantPath = path.join(pythonRoot, 'assistant_env.py');
+const assistantResourcePath = path.join(pythonRoot, 'assistant_env.py');
+const assistantSourcePath = path.join(root, 'src', 'main', 'python', 'assistant_env.py');
 const runtimeRoot = path.join(pythonRoot, 'runtime', plat);
 const wheelsRoot = path.join(pythonRoot, 'wheels', plat);
 
@@ -43,7 +44,8 @@ const runtimeExe = expectedRuntimePath(runtimeRoot, plat);
 const missing = [];
 
 if (!fs.existsSync(reqPath)) missing.push(reqPath);
-if (!fs.existsSync(assistantPath)) missing.push(assistantPath);
+const assistantPath = fs.existsSync(assistantResourcePath) ? assistantResourcePath : assistantSourcePath;
+if (!fs.existsSync(assistantPath)) missing.push(`${assistantResourcePath} (or ${assistantSourcePath})`);
 if (!fs.existsSync(runtimeExe)) missing.push(runtimeExe);
 if (!fs.existsSync(wheelsRoot)) missing.push(wheelsRoot);
 
@@ -90,7 +92,7 @@ const abiHints = Array.from(new Set(
 ));
 
 console.log(`Sandbox assets verified for ${plat}`);
-console.log(`assistant script: ${assistantPath}`);
+console.log(`assistant script candidate: ${assistantPath}`);
 console.log(`runtime: ${runtimeExe}`);
 console.log(`wheels: ${wheelsRoot}`);
 console.log(`wheel ABI hints: ${abiHints.length ? abiHints.join(', ') : 'none detected (pure wheels or unexpected names)'}`);

@@ -25,9 +25,6 @@ const pythonRoot = path.join(root, 'resources', 'python');
 const runtimeRoot = path.join(pythonRoot, 'runtime', platform);
 const wheelsRoot = path.join(pythonRoot, 'wheels', platform);
 const bootstrapRoot = path.join(pythonRoot, 'bootstrap');
-const helperSource = path.join(root, 'src', 'main', 'python', 'assistant_env.py');
-const helperTarget = path.join(pythonRoot, 'assistant_env.py');
-
 for (const dir of [pythonRoot, bootstrapRoot, runtimeRoot, wheelsRoot]) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -51,12 +48,9 @@ if (!fs.existsSync(placeholderPath)) {
   );
 }
 
-if (!fs.existsSync(helperTarget) && fs.existsSync(helperSource)) {
-  fs.copyFileSync(helperSource, helperTarget);
-}
-
 console.log(`Initialized sandbox asset layout for ${platform}`);
 console.log(`python root: ${pythonRoot}`);
 console.log(`runtime dir: ${runtimeRoot}`);
 console.log(`wheels dir: ${wheelsRoot}`);
-console.log(`assistant helper: ${helperTarget}${fs.existsSync(helperTarget) ? ' (exists)' : ' (missing source file)'}`);
+console.log('assistant helper source: ' + path.join(root, 'src', 'main', 'python', 'assistant_env.py'));
+console.log('assistant helper copy into resources/python is optional and not required.');
