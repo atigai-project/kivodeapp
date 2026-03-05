@@ -30,3 +30,9 @@ Run local security checks:
 npm run security:check
 npm run verify:baseline
 ```
+
+
+## See also
+
+- [README.md](./README.md)
+- [docs/SANDBOX.md](./docs/SANDBOX.md)

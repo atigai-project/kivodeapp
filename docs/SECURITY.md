@@ -19,3 +19,9 @@ Report vulnerabilities privately to the maintainers with reproduction steps, imp
 - Update checks require HTTPS and an allowlisted domain.
 - Python runtime uses bundled sandbox runtime only; insecure fallback is forbidden.
 - Installer defaults to user-level permissions (`asInvoker`).
+
+
+## See also
+
+- [../README.md](../README.md)
+- [SANDBOX.md](./SANDBOX.md)

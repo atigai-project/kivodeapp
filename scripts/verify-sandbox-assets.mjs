@@ -15,33 +15,50 @@ function normalizePkg(name) {
   return name.toLowerCase().replace(/[-_.]+/g, '-');
 }
 
+function expectedRuntimePath(runtimeRoot, platform) {
+  return platform.startsWith('win32-')
+    ? path.join(runtimeRoot, 'python.exe')
+    : path.join(runtimeRoot, 'bin', 'python3');
+}
+
 const args = process.argv.slice(2);
 const explicitPlatform = args.find((a) => a.startsWith('--platform='))?.split('=')[1];
 const rootArg = args.find((a) => a.startsWith('--root='))?.split('=')[1];
 const root = rootArg ? path.resolve(rootArg) : process.cwd();
 const plat = explicitPlatform || platformKey();
 
-const reqPath = path.join(root, 'resources', 'python', 'requirements.txt');
-const runtimeRoot = path.join(root, 'resources', 'python', 'runtime', plat);
-const wheelsRoot = path.join(root, 'resources', 'python', 'wheels', plat);
+const pythonRoot = path.join(root, 'resources', 'python');
+const reqPath = path.join(pythonRoot, 'requirements.txt');
+const assistantPath = path.join(pythonRoot, 'assistant_env.py');
+const runtimeRoot = path.join(pythonRoot, 'runtime', plat);
+const wheelsRoot = path.join(pythonRoot, 'wheels', plat);
 
-if (!fs.existsSync(reqPath)) {
-  console.error(`requirements.txt missing: ${reqPath}`);
-  process.exit(1);
+if (!fs.existsSync(runtimeRoot) || !fs.existsSync(wheelsRoot)) {
+  console.warn(`[verify:sandbox-assets] Missing base directories for ${plat}. Running init:sandbox-assets layout setup...`);
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+  fs.mkdirSync(wheelsRoot, { recursive: true });
 }
 
-const runtimeExe = process.platform === 'win32'
-  ? path.join(runtimeRoot, 'python.exe')
-  : path.join(runtimeRoot, 'bin', 'python3');
+const runtimeExe = expectedRuntimePath(runtimeRoot, plat);
+const missing = [];
 
-if (!fs.existsSync(runtimeExe)) {
-  console.error(`Bundled runtime executable missing: ${runtimeExe}`);
+if (!fs.existsSync(reqPath)) missing.push(reqPath);
+if (!fs.existsSync(assistantPath)) missing.push(assistantPath);
+if (!fs.existsSync(runtimeExe)) missing.push(runtimeExe);
+if (!fs.existsSync(wheelsRoot)) missing.push(wheelsRoot);
+
+console.log(`platform: ${plat}`);
+console.log(`arch: ${process.arch}`);
+console.log(`python root: ${pythonRoot}`);
+console.log(`expected runtime: ${runtimeExe}`);
+console.log(`expected wheels dir: ${wheelsRoot}`);
+console.log('python version expectation: runtime should be Python 3.11.x and wheel tags should match that ABI (for example cp311).');
+
+if (missing.length > 0) {
+  console.error('Missing required sandbox paths:');
+  for (const entry of missing) console.error(`- ${entry}`);
+  console.error('Run `npm run init:sandbox-assets` and populate runtime/wheels before retrying.');
   process.exit(2);
-}
-
-if (!fs.existsSync(wheelsRoot)) {
-  console.error(`Wheels directory missing: ${wheelsRoot}`);
-  process.exit(3);
 }
 
 const requirements = fs.readFileSync(reqPath, 'utf8')
@@ -55,12 +72,25 @@ const wheelFiles = fs.readdirSync(wheelsRoot)
   .filter((name) => name.endsWith('.whl'))
   .map((name) => normalizePkg(name));
 
-const missing = requirements.filter((pkg) => !wheelFiles.some((file) => file.startsWith(`${pkg}-`)));
-if (missing.length > 0) {
-  console.error(`Missing wheels for platform ${plat}: ${missing.join(', ')}`);
-  process.exit(4);
+const missingWheels = requirements.filter((pkg) => !wheelFiles.some((file) => file.startsWith(`${pkg}-`)));
+if (missingWheels.length > 0) {
+  console.error(`Missing wheels for platform ${plat}:`);
+  for (const wheel of missingWheels) console.error(`- ${wheel}`);
+  console.error(`wheels dir scanned: ${wheelsRoot}`);
+  process.exit(3);
 }
 
+const abiHints = Array.from(new Set(
+  wheelFiles
+    .map((file) => {
+      const match = file.match(/-(cp\d{2,3}|py3|py2\.py3)-/);
+      return match ? match[1] : null;
+    })
+    .filter(Boolean)
+));
+
 console.log(`Sandbox assets verified for ${plat}`);
+console.log(`assistant script: ${assistantPath}`);
 console.log(`runtime: ${runtimeExe}`);
 console.log(`wheels: ${wheelsRoot}`);
+console.log(`wheel ABI hints: ${abiHints.length ? abiHints.join(', ') : 'none detected (pure wheels or unexpected names)'}`);

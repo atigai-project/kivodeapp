@@ -42,3 +42,9 @@ Primary service modules in `src/main/services`:
 - Main: TypeScript compiler
 - Packaging: electron-builder
 - Verification: custom scripts in `scripts/`
+
+
+## See also
+
+- [README.md](./README.md)
+- [docs/SANDBOX.md](./docs/SANDBOX.md)
